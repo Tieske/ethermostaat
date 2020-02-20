@@ -1,0 +1,282 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>eThermostaat api implementation</title>
+    <link rel="stylesheet" href="ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>eThermostaat</h1>
+
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#Class_ethermostat">Class ethermostat </a></li>
+</ul>
+
+
+<h2>Modules</h2>
+<ul class="nowrap">
+  <li><strong>eThermostaat</strong></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+<h1>Module <code>eThermostaat</code></h1>
+<p>This module implements the eThermostaat API in Lua.</p>
+<p>
+
+
+
+</p>
+    <h3>Info:</h3>
+    <ul>
+        <li><strong>Copyright</strong>: 2014-2015 Thijs Schreijer</li>
+        <li><strong>Release</strong>: Version 0.1, eThermostaat module for Essent/ICY eThermostaat api</li>
+        <li><strong>Author</strong>: Thijs Schreijer, http://www.thijsschreijer.nl</li>
+    </ul>
+
+
+<h2><a href="#Class_ethermostat">Class ethermostat </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#ethermostat.lasterror">ethermostat.lasterror</a></td>
+	<td class="summary">the value of the last error returned</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#ethermostat.token">ethermostat.token</a></td>
+	<td class="summary">the api session token, if nil then a new login attempt will be done automatically</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#ethermostat:newThermostat">ethermostat:newThermostat (user, pwd)</a></td>
+	<td class="summary">Creates a new thermostat.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#thermostat:getroomtemp">thermostat:getroomtemp ()</a></td>
+	<td class="summary">return the current room temperature</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#thermostat:getsetpoint">thermostat:getsetpoint ()</a></td>
+	<td class="summary">return the current setpoint</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#thermostat:roundsetpoint">thermostat:roundsetpoint (value)</a></td>
+	<td class="summary">rounds a setpoint value to the precision this thermostat supports</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#thermostat:setsetpoint">thermostat:setsetpoint ()</a></td>
+	<td class="summary">set a new setpoint</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#thermostat:update">thermostat:update ()</a></td>
+	<td class="summary">Fetches new values.</td>
+	</tr>
+</table>
+
+<br/>
+<br/>
+
+
+    <h2 class="section-header has-description"><a name="Class_ethermostat"></a>Class ethermostat </h2>
+
+          <div class="section-description">
+          eThermostat.
+ Besides the field below, all data elements returned by the login
+ http call and the update http call will be stored directly in this object/table.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "ethermostat.lasterror"></a>
+    <strong>ethermostat.lasterror</strong>
+    </dt>
+    <dd>
+    the value of the last error returned
+
+
+    <ul>
+        <li><span class="parameter">lasterror</span>
+         string
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "ethermostat.token"></a>
+    <strong>ethermostat.token</strong>
+    </dt>
+    <dd>
+    the api session token, if nil then a new login attempt will be done automatically
+
+
+    <ul>
+        <li><span class="parameter">token</span>
+         string
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "ethermostat:newThermostat"></a>
+    <strong>ethermostat:newThermostat (user, pwd)</strong>
+    </dt>
+    <dd>
+    Creates a new thermostat.  Calling on the module table is a shortcut to this function.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">user</span>
+         the username
+        </li>
+        <li><span class="parameter">pwd</span>
+         the password (plain text)
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+        a thermostat object. No network calls will be made upon creation.
+    </ol>
+
+
+    <h3>See also:</h3>
+    <ul>
+         <a href="index.html#thermostat:update">update</a>
+    </ul>
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example"><span class="keyword">local</span> ethermostat = <span class="global">require</span>(<span class="string">"eThermostat"</span>)
+<span class="keyword">local</span> ts = ethermostat.newThermostat(<span class="string">"username"</span>, <span class="string">"password"</span>)
+<span class="comment">-- which equals
+</span><span class="keyword">local</span> ts = ethermostat(<span class="string">"username"</span>, <span class="string">"password"</span>)
+<span class="comment">-- now login and fetch new values
+</span>ts:update()
+</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "thermostat:getroomtemp"></a>
+    <strong>thermostat:getroomtemp ()</strong>
+    </dt>
+    <dd>
+    return the current room temperature
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "thermostat:getsetpoint"></a>
+    <strong>thermostat:getsetpoint ()</strong>
+    </dt>
+    <dd>
+    return the current setpoint
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "thermostat:roundsetpoint"></a>
+    <strong>thermostat:roundsetpoint (value)</strong>
+    </dt>
+    <dd>
+    rounds a setpoint value to the precision this thermostat supports
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">value</span>
+
+
+
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "thermostat:setsetpoint"></a>
+    <strong>thermostat:setsetpoint ()</strong>
+    </dt>
+    <dd>
+    set a new setpoint
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "thermostat:update"></a>
+    <strong>thermostat:update ()</strong>
+    </dt>
+    <dd>
+    Fetches new values.  If there is no token value, it will first login.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+        the thermostat object (with updated fields), or nil+error on failure
+    </ol>
+
+
+
+
+</dd>
+</dl>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.6</a></i>
+<i style="float:right;">Last updated 2020-02-20 22:58:34 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>

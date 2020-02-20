@@ -1,0 +1,381 @@
+--[[
+<?xml version="1.0"?>
+<implementation>
+  <settings>
+    <protocol>cr</protocol>
+  </settings>
+  <functions>
+--]]
+      local ICYDEVICE_SID = "urn:micasaverde-com:serviceId:HaDevice1"
+      local HVAC_SID = "urn:upnp-org:serviceId:HVAC_UserOperatingMode1"
+      local TSP_SID = "urn:upnp-org:serviceId:TemperatureSetpoint1_Heat"
+      local TEMPERATURE_SID = "urn:upnp-org:serviceId:TemperatureSensor1"
+      local icy_username = ""
+      local icy_password = ""
+      local icy_data = {}
+      local DEVICE_ID = lul_device
+      
+      local https = require('ssl.https')
+      local ltn12 = require('ltn12')
+      local esjson = require('esjson')
+      local mime = require('mime')
+      local bit = require('bit')
+
+      function getErrorTekst(errorCode)
+        local errorTekst=""
+      
+        if errorCode == 400 then
+            errorTekst = "400: Contact technical support"
+        elseif errorCode == 401 then
+            errorTekst = "401: Session expired, please login again"
+        elseif errorCode == 403 then
+            errorTekst = "403: Contact technical support"
+        elseif errorCode == 503 then
+            errorTekst = "503: Unkown error, contact technical support"
+        else
+            errorTekst = "Network connection failure"
+        end
+      
+        return errorTekst
+      
+      end
+      
+      function icy_login()
+      
+          local timeout = 15
+          local resultTable = {}
+          local errorTekst = ""
+          
+          
+          local request_body= 'username=' .. icy_username .. '&amp;password=' .. icy_password
+      
+          local r,c,h = https.request {
+          
+              url = 'https://portal.icy.nl/login',
+              method = 'POST',
+              headers = {
+                  ["Content-Type"] = "application/x-www-form-urlencoded",
+                  ["Content-Length"] = string.len(request_body),
+              },
+              source = ltn12.source.string(request_body),
+              sink = ltn12.sink.table(resultTable)
+          }
+      
+          local data = ''
+          for i,v in ipairs(resultTable) do
+              -- luup.log('result data login: ' .. i .. v)
+              data = data .. v
+          end
+
+      
+        if c ~= 200 then
+              if c==400 then
+                  errorTekst = "400: Login failed, missing username or password"
+              elseif c==401 then
+                  errorTekst = "401: Login failed, invalid username or password"
+              elseif c==403 then
+                  errorTekst = "403: Login failed, too many tries"
+              elseif c==503 then
+                  errorTekst = "503: Login failed due to technical maintenance"
+              else
+                  errorTekst = "Unkown error: Network connection failure"
+              end
+          
+              luup.variable_set(ICYDEVICE_SID, "Last Error", errorTekst, lul_device)
+          
+              return false
+          else
+          
+              local json_input=esjson.decode(data)
+              icy_data.serialthermostat1 = json_input.serialthermostat1
+              icy_data.token = json_input.token
+              return true
+          end
+      
+      end
+
+
+      
+      	function readData()
+
+      		local timeout = 15
+      		local resultTable = {}
+      		local request_body= ''
+
+      		local r,c,h = https.request {
+
+      			url = 'https://portal.icy.nl/data',
+      			method = 'GET',
+      			headers = {
+        			["Content-Type"] = "application/x-www-form-urlencoded",
+        			["Session-token"] = icy_data.token,
+        			["Content-Length"] = string.len(request_body),
+        		},
+      			source = ltn12.source.string(request_body),
+      			sink = ltn12.sink.table(resultTable)
+      		}
+
+            local data = ''
+            for i,v in ipairs(resultTable) do
+                -- luup.log('Code received: ' .. c .. '  Data received:' .. i .. v)
+                data = data .. v
+            end
+      
+            if(c==200) then
+                local json_input=esjson.decode(data)
+                icy_data.temperature1 = json_input.temperature1
+                icy_data.temperature2 = json_input.temperature2
+                icy_data.controlSettings = json_input.configuration[1]
+                icy_data.nodeSettings = json_input.configuration[2]
+                icy_data.rustPeriod = json_input.configuration[3]
+                icy_data.comfortPeriod = json_input.configuration[4]
+                icy_data.antivorstTemp = json_input.configuration[5]
+                icy_data.rustTemp = json_input.configuration[6]
+                icy_data.comfortTemp = json_input.configuration[7]
+                icy_data.maxTemp = json_input.configuration[8]
+                icy_data.comfortShorttime = json_input.configuration[9]
+                icy_data.lightsensorProfile = json_input.configuration[10]
+                icy_data.heatingProfile = json_input.configuration[11]
+                icy_data.thermostatColor = json_input.configuration[12]
+                return true
+            else
+                luup.variable_set(ICYDEVICE_SID, "Last Error", getErrorTekst(c), lul_device)
+                icy_data.loggedin = false
+                return false
+            end     
+      
+      	end
+
+      	function getthermostatMode()
+        	local tempMode = bit.rshift(icy_data.controlSettings, 5)
+        	tempMode = bit.band(tempMode,7)
+        	return tempMode
+      	end
+
+
+      	function getTemp()
+        	return icy_data.temperature2
+      	end      
+
+
+ 	function setTemp(targettemp)
+
+      		if not readData() then
+                return false
+            end
+    
+      		local timeout = 15
+      		local resultTable = {}
+
+      		local request_body= 'uid=' .. icy_data.serialthermostat1
+      		request_body = request_body .. '&amp;temperature1=' .. targettemp
+ 
+      		local r,c,h = https.request {
+
+      			url = 'https://portal.icy.nl/data',
+      			method = 'POST',
+      			headers = {
+        			["Content-Type"] = "application/x-www-form-urlencoded",
+        			["Session-token"] = icy_data.token,
+        			["Content-Length"] = string.len(request_body),
+        		},
+      			source = ltn12.source.string(request_body),
+      			sink = ltn12.sink.table(resultTable)
+      		}
+
+            if(c==200) then       
+                return true
+            else
+                luup.variable_set(ICYDEVICE_SID, "Last Error", getErrorTekst(c), lul_device)
+                icy_data.loggedin = false
+                return false
+            end
+      
+      	end
+
+
+      	function setthermostatMode(mode)
+
+            -- TODO: als de functie mislukt dan de doelmode onthouden en volgende keer opnieuw proberen
+            -- start met doelmode opslaan
+      
+            if not readData() then
+                return false
+            end
+
+      		newControlSettings = bit.band(icy_data.controlSettings, 31)
+      		constructMode = bit.lshift(mode,5)
+      		constructMode = bit.band(constructMode, 224)
+      		icy_data.controlSettings = newControlSettings + constructMode
+
+      
+      		local timeout = 15
+      		local resultTable = {}
+
+      		local request_body = 'uid=' .. icy_data.serialthermostat1
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.controlSettings
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.nodeSettings
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.rustPeriod
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.comfortPeriod
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.antivorstTemp
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.rustTemp
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.comfortTemp
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.maxTemp
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.comfortShorttime
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.lightsensorProfile
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.heatingProfile
+      		request_body = request_body .. '&amp;configuration[]=' .. icy_data.thermostatColor
+
+      		local r,c,h = https.request {
+
+      			url = 'https://portal.icy.nl/data',
+      			method = 'POST',
+      			headers = {
+        			["Content-Type"] = "application/x-www-form-urlencoded",
+        			["Session-token"] = icy_data.token,
+        			["Content-Length"] = string.len(request_body),
+        		},
+      			source = ltn12.source.string(request_body),
+      			sink = ltn12.sink.table(resultTable)
+      		}
+      
+            if(c==200) then
+                return true
+            else
+                luup.variable_set(ICYDEVICE_SID, "Last Error", getErrorTekst(c), lul_device)
+                icy_data.loggedin = false
+                return false
+            end
+
+      end
+
+	function refreshCache()
+	luup.call_timer("refreshCache",1,120,"")
+        if icy_data.loggedin then
+            readData()
+        elseif icy_login() then
+            icy_data.loggedin = true
+            readData()
+        else
+            return
+        end
+      
+        luup.variable_set(ICYDEVICE_SID, "LastUpdate", os.time(), DEVICE_ID)
+        luup.variable_set(TEMPERATURE_SID, "CurrentTemperature", icy_data.temperature2, DEVICE_ID)
+        luup.variable_set(TSP_SID, "CurrentSetpoint", icy_data.temperature1, DEVICE_ID)
+
+        local status = getthermostatMode()
+  
+        local statusHVACTekst=""
+
+        if(status == 0) then
+            statusHVACTekst="BuildingProtection"
+        elseif(status == 1) then
+             statusHVACTekst="EconomyHeatOn"
+        elseif(status == 2) then
+             statusHVACTekst="Off"
+        elseif(status == 5) then
+             statusHVACTekst="HeatOn"
+        end
+        luup.variable_set(HVAC_SID, "ModeStatus", statusHVACTekst, DEVICE_ID)
+	end
+    
+    function startupDeferred()
+		if icy_login() then
+            icy_data.loggedin = true
+            refreshCache()
+        else
+            luup.log('ICY Thermostaat login failed, plugin not started')
+        end
+	end
+      
+    function startupIcy(lul_device)
+        icy_username = luup.variable_get(ICYDEVICE_SID, "Username", lul_device)
+        if(icy_username == nil) then
+          icy_username = "username2"
+          luup.variable_set(ICYDEVICE_SID, "Username", icy_username, lul_device)
+        end
+      
+        icy_password = luup.variable_get(ICYDEVICE_SID, "Password", lul_device)
+        if(icy_password == nil) then
+          icy_password = "passwd2"
+          luup.variable_set(ICYDEVICE_SID, "Password", icy_password, lul_device)
+        end
+      
+        luup.variable_set(ICYDEVICE_SID,"Last Error", "", lul_device)
+	
+  	-- V1.2 Category correct instellen als climate device
+	luup.attr_set("category_num", 5, lul_device)
+      
+        icy_data.loggedin = false
+
+        luup.call_timer("startupDeferred", 1, "1", "")
+        luup.log("Icy E-Thermostaat #" .. lul_device .. " starting up with id " .. luup.devices[lul_device].id)
+        return true
+      
+      end
+--[[
+</functions>
+  <incoming>
+      <lua>
+--]]
+          luup.log('Received something on Icy device')
+--[[
+      </lua>
+  </incoming>
+  <startup>startupIcy</startup>
+  <actionList>
+    <action>
+      <serviceId>urn:upnp-org:serviceId:HVAC_UserOperatingMode1</serviceId>
+      <name>SetModeTarget</name>
+      <run>
+--]]
+          local val = lul_settings.NewModeTarget
+          if(val == "Off") then
+            setthermostatMode(2)
+            luup.variable_set(HVAC_SID, "ModeStatus", val, DEVICE_ID)
+	    local tmp = icy_data.rustTemp / 2
+	    setTemp(tmp)
+          end
+          if(val == "EconomyHeatOn") then
+            setthermostatMode(1)
+            luup.variable_set(HVAC_SID, "ModeStatus", val, DEVICE_ID)
+	    local tmp = icy_data.comfortTemp / 2
+	    setTemp(tmp)
+          end
+          if(val == "BuildingProtection") then
+            setthermostatMode(0)
+            luup.variable_set(HVAC_SID, "ModeStatus", val, DEVICE_ID)
+	    local tmp = icy_data.antivorstTemp / 2
+	    setTemp(tmp)
+          end
+          if(val == "Heaton") then
+            setthermostatMode(5)
+            luup.variable_set(HVAC_SID, "ModeStatus", val, DEVICE_ID)
+          end
+--[[
+    </run>
+    </action>
+    <action>
+        <serviceId>urn:upnp-org:serviceId:TemperatureSetpoint1_Heat</serviceId>
+        <name>GetCurrentSetpoint</name>
+        <run>
+--]]
+            return icy_data.temperature1
+--[[
+        </run>
+    </action>
+    <action>
+        <serviceId>urn:upnp-org:serviceId:TemperatureSetpoint1_Heat</serviceId>
+        <name>SetCurrentSetpoint</name>
+        <run>
+--]]
+          local val = lul_settings.NewCurrentSetpoint
+          luup.log("Icy temperatuur doel is" .. val)
+          setTemp(val)
+--[[
+        </run>
+  </action>
+  </actionList>
+</implementation>
+--]]
